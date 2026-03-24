@@ -18,10 +18,12 @@ MODULE CohesiveEnergyModule
 
   ! MacAulay-Operator
   USE MathModul
+  
+  USE AliasModuleCZ
   ! cubic degradation function: Noll, Kuhn, Mueller (2017)
-  USE DegradationModule, ONLY: Degradation => DegradationCubic, &
-                                              d_Degradation_d_damage => d_DegradationCubic_d_damage, &
-                                              d_Degradation_d_damage_d_damage => d_DegradationCubic_d_damage_d_damage 
+!~   USE DegradationModule, ONLY: Degradation => DegradationCubic, &
+!~                                               d_Degradation_d_damage => d_DegradationCubic_d_damage, &
+!~                                               d_Degradation_d_damage_d_damage => d_DegradationCubic_d_damage_d_damage 
   IMPLICIT NONE
 
   CONTAINS

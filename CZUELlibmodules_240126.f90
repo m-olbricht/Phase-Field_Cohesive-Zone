@@ -15,6 +15,7 @@
 ! 13.08.2015: Aenderung Roth - Rotationsmatrix
 ! 06.01.2016: Modifikationen fuer UELlib-Kompatibilitaet
 ! 03.01.2024: Aenderung Roth - Erweiterung um Schaedigungsvariable als Knotenfreiwert (Paggi, Reinoso)
+! 23.05.2025: Aenderung Roth - Rotationsmatrix fuer 1D/2D-Faelle angepasst 
 !
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -171,7 +172,14 @@ MODULE CohesiveBMatrixJDet
         END FORALL
 
         ! Ausgabe-Rotationsmatrix
-        drot = Trafomat(1:3,1:3)
+        drot = zero
+        drot(1:D,1:D) = Trafomat(1:D,1:D)
+        ! Hauptdiagonale mit 1 fuellen
+        IF (D .LT. 3) THEN
+          FORALL (i1=D+1:3)
+            drot(i1,i1) = one
+          END FORALL
+        END IF
 
         ! B-Matrix
         Matrix_B = matmul(TrafoMat,Matrix_N)

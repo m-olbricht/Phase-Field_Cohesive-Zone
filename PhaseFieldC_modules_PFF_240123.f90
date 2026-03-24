@@ -80,8 +80,9 @@ MODULE PhaseField_module
       USE FLOATNUMBERS
       USE ABAModul
       USE PhaseField_Parameters, ONLY: numSDV, numMatPar, thicknessIndex
+      
       USE FreeEnergyModule
-      USE InterfaceEnergyModule
+      USE AliasModulePF 
 
       IMPLICIT NONE
 

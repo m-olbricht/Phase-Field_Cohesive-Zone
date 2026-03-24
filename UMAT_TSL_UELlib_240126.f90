@@ -103,12 +103,11 @@ MODULE CZUMAT_module
       USE FLOATNUMBERS
       USE ABAModul
       USE PhaseField_Parameters, ONLY: numSDV, numMatPar, thicknessIndex
+      
+      USE AliasModuleCZ
       USE CohesiveEnergyModule
       USE ContactEnergyModule
-      USE PenaltyEnergyModule, ONLY: PenED => PenED_Exponential, &
-                                     d_PenED_d_damageJump => d_PenED_d_damageJump_Exponential, &
-                                     d_PenED_d_damageJump_d_damageJump => d_PenED_d_damageJump_d_damageJump_Exponential 
-      USE InterfaceEnergyModule
+      
 
       IMPLICIT NONE
 

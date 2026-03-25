@@ -60,9 +60,9 @@ MODULE AliasModuleCZ
 !~    ! ==========================================================
 !~    ! Degradation Function
 !~    ! ==========================================================
-  USE DegradationModule, ONLY: Degradation => DegradationCubic, &
-                                              d_Degradation_d_damage => d_DegradationCubic_d_damage, &
-                                              d_Degradation_d_damage_d_damage => d_DegradationCubic_d_damage_d_damage 
+  USE DegradationModule, ONLY: Degradation => DegradationFlex, &
+                                              d_Degradation_d_damage => d_DegradationFlex_d_damage, &
+                                              d_Degradation_d_damage_d_damage => d_DegradationFlex_d_damage_d_damage 
 
 
    ! ==========================================================

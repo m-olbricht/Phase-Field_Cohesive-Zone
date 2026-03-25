@@ -128,7 +128,7 @@ MODULE CZUMAT_module
       INTEGER(kind=AbqIK) :: D, i1, i2, pos_damage, pos_damageJump, pos_damageGradient, nIEDpar, nCEDpar, normalDirectionIndex
       REAL(kind=AbqRK) :: damage, damageJump, damage_old
       REAL(kind=AbqRK) :: lambda, lambda_old
-      REAL(kind=AbqRK) :: prop_l0, prop_t0, prop_delta0, prop_G0, prop_pen, prop_compressionstiffness, prop_df_one, prop_df_two
+      REAL(kind=AbqRK) :: prop_l0, prop_t0, prop_delta0, prop_G0, prop_pen, prop_compressionstiffness, prop_df_alpha, prop_df_beta
       REAL(kind=AbqRK) :: totalPotential, storedEnergy, interfaceEnergy, penaltyEnergy, contactEnergy, transformedStress(6)
       REAL(kind=AbqRK), ALLOCATABLE :: sep(:), sepGlobal(:), trac(:), damageGradient(:), damageGradientLocal(:), damageGradientGlobal(:), &
                                        K(:,:), tmp(:), tmp2(:,:), parIEDMatrix(:), parCEDMatrix(:)
@@ -143,8 +143,8 @@ MODULE CZUMAT_module
       prop_pen     = props_mat( 5) ! penalty factor
       prop_G0      = props_mat( 6) ! critical interface fracture energy density
       prop_compressionstiffness = props_mat( 8) ! penalty factor for negative normal separation
-      prop_df_one  = props_mat( 9) ! parameter 1 of degradation function
-      prop_df_two  = props_mat(10) ! parameter 2 of degradation function
+      prop_df_alpha  = props_mat( 9) ! parameter 1 of degradation function
+      prop_df_beta  = props_mat(10) ! parameter 2 of degradation function
 	  !
       ! arrays of material parameters
       !
@@ -199,7 +199,7 @@ MODULE CZUMAT_module
 
       ! energetic quantities
       !
-      storedEnergy    = CZED(D,normalDirectionIndex,sep,damage,prop_delta0,prop_t0,prop_df_one,prop_df_two)
+      storedEnergy    = CZED(D,normalDirectionIndex,sep,damage,prop_delta0,prop_t0,prop_df_alpha,prop_df_beta)
       interfaceEnergy = IED(D-1,damage,damageGradient,nIEDpar,parIEDMatrix) 
       penaltyEnergy   = PenED(damageJump,prop_pen)
       contactEnergy   = ContactED(D,normalDirectionIndex,sep,nCEDpar,parCEDMatrix)
@@ -219,7 +219,7 @@ MODULE CZUMAT_module
       stress = zero
       !
       ! local tractions
-      trac = d_CZED_d_sep(D,normalDirectionIndex,damage,sep,prop_delta0,prop_t0,prop_df_one,prop_df_two)
+      trac = d_CZED_d_sep(D,normalDirectionIndex,damage,sep,prop_delta0,prop_t0,prop_df_alpha,prop_df_beta)
       ! consider negative normal separation / compression
       trac = tracWithContact(D,normalDirectionIndex,trac,sep,nCEDpar,parCEDMatrix)
       ! arrange in stress array
@@ -227,7 +227,7 @@ MODULE CZUMAT_module
       !
       ! damage conjugate -- damage driving force
       ! contribution from elastic free energy density and surface energy density
-      stress(pos_damage) = d_CZED_d_damage(D,normalDirectionIndex,damage,sep,prop_delta0,prop_t0,prop_df_one,prop_df_two) &
+      stress(pos_damage) = d_CZED_d_damage(D,normalDirectionIndex,damage,sep,prop_delta0,prop_t0,prop_df_alpha,prop_df_beta) &
                          + d_IED_d_damage(D-1,damage,damageGradient,nIEDpar,parIEDMatrix)
       !
       ! damage jump conjugate
@@ -245,7 +245,7 @@ MODULE CZUMAT_module
       !
       ! separation
       ! contribution from elastic free energy density
-      K = d_CZED_d_sep_d_sep(D,normalDirectionIndex,damage,sep,prop_delta0,prop_t0,prop_df_one,prop_df_two)
+      K = d_CZED_d_sep_d_sep(D,normalDirectionIndex,damage,sep,prop_delta0,prop_t0,prop_df_alpha,prop_df_beta)
       ! consider negative normal separation / compression
       K = tangentWithContact(D,normalDirectionIndex,K,sep,nCEDpar,parCEDMatrix)
       ! arrange  in tangent array
@@ -253,12 +253,12 @@ MODULE CZUMAT_module
       !
       ! damage
       ! contribution from elastic free energy density and surface energy density
-      Ct(pos_damage,pos_damage) = d_CZED_d_damage_d_damage(D,normalDirectionIndex,damage,sep,prop_delta0,prop_t0,prop_df_one,prop_df_two) &
+      Ct(pos_damage,pos_damage) = d_CZED_d_damage_d_damage(D,normalDirectionIndex,damage,sep,prop_delta0,prop_t0,prop_df_alpha,prop_df_beta) &
                                 + d_IED_d_damage_d_damage(D-1,damage,damageGradient,nIEDpar,parIEDMatrix)
       !
       ! mixed submatrix
       ! contribution from elastic free energy density and surface energy density
-      tmp(1:D) = d_CZED_d_sep_d_damage(D,normalDirectionIndex,damage,sep,prop_delta0,prop_t0,prop_df_one,prop_df_two)
+      tmp(1:D) = d_CZED_d_sep_d_damage(D,normalDirectionIndex,damage,sep,prop_delta0,prop_t0,prop_df_alpha,prop_df_beta)
       Ct(1:D,pos_damage) = tmp(1:D)
       Ct(pos_damage,1:D) = Ct(1:D,pos_damage)
       !

@@ -117,6 +117,57 @@ MODULE DegradationModule
 
 !------------------------------------------------------------------------------------
 
+
+! 				Degradation Roth
+
+
+!------------------------------------------------------------------------------------
+
+    PURE REAL(kind=AbqRK) FUNCTION DegradationFlex(damage,prop_df_beta,prop_df_alpha)
+    ! flexible degradation function: Roth
+
+      USE ABQINTERFACE
+      USE FLOATNUMBERS
+
+      IMPLICIT NONE
+      REAL(kind=AbqRK), INTENT(IN) :: damage, prop_df_beta, prop_df_alpha
+      !
+      DegradationFlex = (one-damage)**prop_df_alpha*(one-prop_df_beta) + prop_df_beta
+
+    END FUNCTION DegradationFlex
+
+!------------------------------------------------------------------------------------
+
+    PURE REAL(kind=AbqRK) FUNCTION d_DegradationFlex_d_damage(damage,prop_df_beta,prop_df_alpha)
+    ! flexible degradation function: Roth
+
+      USE ABQINTERFACE
+      USE FLOATNUMBERS
+
+      IMPLICIT NONE
+      REAL(kind=AbqRK), INTENT(IN) :: damage, prop_df_beta, prop_df_alpha
+      !
+      d_DegradationFlex_d_damage = -prop_df_alpha * (one-damage)**(prop_df_alpha-one)*(one-prop_df_beta)
+
+    END FUNCTION d_DegradationFlex_d_damage
+
+!------------------------------------------------------------------------------------
+
+    PURE REAL(kind=AbqRK) FUNCTION d_DegradationFlex_d_damage_d_damage(damage,prop_df_beta,prop_df_alpha)
+    ! flexible degradation function: Roth
+
+      USE ABQINTERFACE
+      USE FLOATNUMBERS
+
+      IMPLICIT NONE
+      REAL(kind=AbqRK), INTENT(IN) :: damage, prop_df_beta, prop_df_alpha
+      !
+      d_DegradationFlex_d_damage_d_damage = (prop_df_alpha**two-prop_df_alpha)*(one-damage)**(prop_df_alpha-two)*(one-prop_df_beta)
+
+    END FUNCTION d_DegradationFlex_d_damage_d_damage
+
+!------------------------------------------------------------------------------------
+
 END MODULE DegradationModule
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!

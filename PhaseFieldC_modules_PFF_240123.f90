@@ -261,7 +261,7 @@ MODULE PhaseField_module
         USE ABQINTERFACE_PF
         USE FLOATNUMBERS
         USE FreeEnergyModule
-        USE InterfaceEnergyModule
+        USE AliasModulePF
 
         IMPLICIT NONE
         INTEGER(kind=AbqIK), INTENT(IN) :: D, nphase, nHFEDpar, nIEDpar
@@ -360,7 +360,8 @@ MODULE PhaseField_module
         USE ABQINTERFACE_PF
         USE FLOATNUMBERS
         USE FreeEnergyModule
-        USE InterfaceEnergyModule
+        USE AliasModulePF
+        USE BulkEnergyModule
 
         IMPLICIT NONE
         INTEGER(kind=AbqIK), INTENT(IN) :: D, ntens, nphase, pos_p(nphase)
@@ -417,7 +418,7 @@ MODULE PhaseField_module
         USE ABQINTERFACE_PF
         USE FLOATNUMBERS
         USE FreeEnergyModule
-        USE InterfaceEnergyModule
+        USE AliasModulePF
 
         IMPLICIT NONE
         INTEGER(kind=AbqIK), INTENT(IN) :: D, ntens, nphase, pos_p(nphase)

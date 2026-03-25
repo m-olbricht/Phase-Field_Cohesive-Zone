@@ -28,7 +28,7 @@ USE AliasModulePF
 
 !------------------------------------------------------------------------------------!
 
-    REAL(kind=AbqRK) FUNCTION HFEDtens_H(eps,nHFEDpar,parHFEDMatrixPhase)
+    PURE REAL(kind=AbqRK) FUNCTION HFEDtens_H(eps,nHFEDpar,parHFEDMatrixPhase)
     ! bulk energy density
       
       IMPLICIT NONE
@@ -43,7 +43,7 @@ USE AliasModulePF
     
 !------------------------------------------------------------------------------------!
 
-    REAL(kind=AbqRK) FUNCTION bulkED(eps,damage,nHFEDpar,parHFEDMatrixPhase,prop_df_alphaPF,prop_df_betaPF)
+    PURE REAL(kind=AbqRK) FUNCTION bulkED(eps,damage,nHFEDpar,parHFEDMatrixPhase,prop_df_alphaPF,prop_df_betaPF)
     ! bulk energy density
 
       IMPLICIT NONE
@@ -71,7 +71,7 @@ USE AliasModulePF
 !------------------------------------------------------------------------------------!
 !------------------------------------------------------------------------------------!
 
-    REAL(kind=AbqRK) FUNCTION d_bulkED_d_eps(eps,damage,nHFEDpar,parHFEDMatrixPhase,prop_df_alphaPF,prop_df_betaPF)
+    PURE REAL(kind=AbqRK) FUNCTION d_bulkED_d_eps(eps,damage,nHFEDpar,parHFEDMatrixPhase,prop_df_alphaPF,prop_df_betaPF)
     ! derivative of bulk energy density w.r.t. strain
 
       IMPLICIT NONE
@@ -96,7 +96,7 @@ USE AliasModulePF
 
 !------------------------------------------------------------------------------------
 
-    REAL(kind=AbqRK) FUNCTION d_bulkED_d_damage_H(eps,damage,nHFEDpar,parHFEDMatrixPhase,prop_df_alphaPF,prop_df_betaPF,H)
+    PURE REAL(kind=AbqRK) FUNCTION d_bulkED_d_damage_H(eps,damage,nHFEDpar,parHFEDMatrixPhase,prop_df_alphaPF,prop_df_betaPF,H)
     ! derivative of bulk energy density w.r.t. damage
 
       IMPLICIT NONE
@@ -123,7 +123,7 @@ USE AliasModulePF
 !------------------------------------------------------------------------------------!
 
 
-    REAL(kind=AbqRK) FUNCTION d_bulkED_d_eps_d_eps(eps,damage,nHFEDpar,parHFEDMatrixPhase,prop_df_alphaPF,prop_df_betaPF)
+    PURE REAL(kind=AbqRK) FUNCTION d_bulkED_d_eps_d_eps(eps,damage,nHFEDpar,parHFEDMatrixPhase,prop_df_alphaPF,prop_df_betaPF)
     ! doubled partial derivative of bulk energy density w.r.t. strain strain
 
       IMPLICIT NONE
@@ -150,7 +150,7 @@ USE AliasModulePF
 
 !------------------------------------------------------------------------------------
 
-    REAL(kind=AbqRK) FUNCTION d_bulkED_d_eps_d_damage(eps,damage,nHFEDpar,parHFEDMatrixPhase,prop_df_alphaPF,prop_df_betaPF)
+    PURE REAL(kind=AbqRK) FUNCTION d_bulkED_d_eps_d_damage(eps,damage,nHFEDpar,parHFEDMatrixPhase,prop_df_alphaPF,prop_df_betaPF)
     ! partial derivative of the bulk energy w.r.t. strain and damage parameter
     
       IMPLICIT NONE
@@ -175,7 +175,7 @@ USE AliasModulePF
 
 !------------------------------------------------------------------------------------
 
-    REAL(kind=AbqRK) FUNCTION d_bulkED_d_damage_d_damage_H(eps,damage,nHFEDpar,parHFEDMatrixPhase,prop_df_alphaPF,prop_df_betaPF,H)
+    PURE REAL(kind=AbqRK) FUNCTION d_bulkED_d_damage_d_damage_H(eps,damage,nHFEDpar,parHFEDMatrixPhase,prop_df_alphaPF,prop_df_betaPF,H)
     ! partial derivative of the bulk energy w.r.t. damage and damage
     !
 

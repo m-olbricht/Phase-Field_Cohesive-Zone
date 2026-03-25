@@ -5,14 +5,14 @@
 !
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !
-! UMAT material subroutine of multi-phase multi-component phase field model
+! UMAT material subroutine of multi-damage multi-component damage field model
 !
 ! Stephan Roth, TU Bergakademie Freiberg, 30.07.2020
 !
-! 30.07.2020: Multi-phase multi-component
+! 30.07.2020: Multi-damage multi-component
 ! 23.11.2020: all derivatives tested (totalPotential --> stresses --> tangent)
-! 15.06.2021: concentrations independent on phases
-! 19.07.2021: phase-dependent parameters
+! 15.06.2021: concentrations independent on damages
+! 19.07.2021: damage-dependent parameters
 ! 04.03.2022: chemical reactions
 ! 03.01.2024: without NCP, DOF: displacements, 1xdamage variable
 !
@@ -24,10 +24,41 @@
 !
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !
-! SVR: svr(1)     :
+! SVR: svr( 1)     : damage
+!	   svr( 2)	   : stress 11
+!	   svr( 3)	   : stress 22
+!	   svr( 4)	   : stress 33
+!	   svr( 5)	   : stress 12
+!	   svr( 6)	   : stress 13
+!	   svr( 7)	   : stress 23
+!	   svr( 8)	   : stran 11
+!	   svr( 9)	   : stran 22
+!	   svr(10)	   : stran 33
+!	   svr(11)	   : stran 12
+!	   svr(12)	   : stran 13
+!	   svr(13)	   : stran 23
+!	   svr(14)	   : H
+!	   svr(15)	   : -
+!	   svr(16)	   : elast energy
+!	   svr(17)	   : dissipat plast energy
+!	   svr(18)	   : total Pot
+!	   svr(19)	   : -
+!	   svr(20)	   : -
 !
 ! material parameters:
 !
+!		props_mat ( 1) : 
+!		props_mat ( 2) : 
+!		props_mat ( 3) : 
+!		props_mat ( 4) : *numerical Tangent
+!		props_mat ( 5) : E-Modul
+!		props_mat ( 6) : Poisson-ratio
+!		props_mat ( 7) : 
+!		props_mat ( 8) : G0
+!		props_mat ( 9) : l0
+!		props_mat (10) : prop_df_alpha
+!		props_mat (11) : prop_df_beta
+!		props_mat (12) : 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 MODULE PhaseField_module
@@ -83,6 +114,7 @@ MODULE PhaseField_module
       
       USE FreeEnergyModule
       USE AliasModulePF 
+      USE BulkEnergyModule, ONLY: HFEDtens_H
 
       IMPLICIT NONE
 
@@ -105,8 +137,10 @@ MODULE PhaseField_module
       INTEGER(kind=AbqIK) :: first_HFED_par_index, first_IED_par_index
       REAL(kind=AbqRK) :: eps(3,3)
       REAL(kind=AbqRK) :: delta, stran_per(ntens), stress_per(ntens), Ct_temp(ntens,ntens), totalPotential, per, stress_num(ntens)
+      REAL(kind=AbqRK) :: prop_df_a, prop_df_b
+      REAL(kind=AbqRK) :: ElasticEnergytens, H, Hn
       INTEGER(kind=AbqIK), ALLOCATABLE :: pos_p(:)
-      REAL(kind=AbqRK), ALLOCATABLE :: phase(:), grad_damage(:,:)
+      REAL(kind=AbqRK), ALLOCATABLE :: damage(:), grad_damage(:,:)
       REAL(kind=AbqRK), ALLOCATABLE :: parHFEDMatrix(:), parIEDMatrix(:)
       LOGICAL :: numericalTangent, isSpherisymmetric, isNaN
 
@@ -133,7 +167,7 @@ MODULE PhaseField_module
       ! numerical tangent
       IF (props_mat(4) .NE. zero) numericalTangent = .TRUE.
 
-      ! number of phases
+      ! number of damages
       nphase = 1 ! damage variable
       !
       ! number of parameters in free energy
@@ -141,10 +175,11 @@ MODULE PhaseField_module
       ! number of parameters in interface energy
       nIEDpar = 2
       !
-      ALLOCATE(pos_p(nphase), phase(nphase), grad_damage(nphase,3))
+      !
+      ALLOCATE(pos_p(nphase), damage(nphase), grad_damage(nphase,3))
       ALLOCATE(parHFEDMatrix(nHFEDpar), parIEDMatrix(nIEDpar))
       pos_p = 0
-      phase = zero; grad_damage = zero
+      damage = zero; grad_damage = zero
       parHFEDMatrix = zero; parIEDMatrix = zero
 
       ! coordinate positions
@@ -153,11 +188,11 @@ MODULE PhaseField_module
       END DO
 
       ! generalized kinematic measures
-      eps = zero; phase = zero; grad_damage = zero
+      eps = zero; damage = zero; grad_damage = zero
       ! strain tensor
       eps = strainCoordinates(D,ntens,stran,isSpherisymmetric)
       ! order parameter -- damage variable
-      phase = phaseParameter(nphase,pos_p,ntens,stran)
+      damage = damageParameter(nphase,pos_p,ntens,stran)
       ! gradient of order parameter = gradient of damage variable
       grad_damage(:,:) = gradientOfPhaseParameter(nphase,D,pos_p,ntens,stran)
 
@@ -170,23 +205,44 @@ MODULE PhaseField_module
       ! interface energy density -- see InterfaceEnergyModule.f90
       first_IED_par_index = 8
       parIEDMatrix = props_mat(first_IED_par_index:first_IED_par_index+nIEDpar-1)
+	  
+	  ! Degradation Parameters
+	  prop_df_a = props_mat(10)
+	  prop_df_b = props_mat(11)
 
+	  ! History Update
+      Hn = svr(14)
+      H = zero
+      
+      ElasticEnergytens = HFEDtens_H(eps,nHFEDpar,parHFEDMatrix)
+      
+	  IF (ElasticEnergytens .GT. Hn) THEN
+        H = ElasticEnergytens
+      ELSE
+        H = Hn
+      END IF 
+      
+      svr(14) = H
+	  
+	  
       ! compute all first derivatives
 
       ! generalised stresses
-      stress = stresses(D,ntens,nphase,pos_p,eps,phase,grad_damage, &
-                        nHFEDpar,parHFEDMatrix,nIEDpar,parIEDMatrix)
+      stress = stresses(D,ntens,nphase,pos_p,eps,damage,grad_damage, &
+                        nHFEDpar,parHFEDMatrix,nIEDpar,parIEDMatrix, &
+                        prop_df_a, prop_df_b, &
+                        H)
 
       ! energetic quantities
 
       ! total potential
-      totalPotential = potential(D,nphase,eps,phase,grad_damage,nHFEDpar,parHFEDMatrix,nIEDpar,parIEDMatrix)
+      totalPotential = potential(D,nphase,eps,damage,grad_damage,nHFEDpar,parHFEDMatrix,nIEDpar,parIEDMatrix, prop_df_a, prop_df_b)
 
-      ! Helmholtz free energy density of phase mix and Helmholtz energy density of interface
+      ! Helmholtz free energy density of damage mix and Helmholtz energy density of interface
       energy_elast = HFED_Mix(eps,nHFEDpar,parHFEDMatrix)
 
       ! Interface energy density
-      dissipat_plast = IED(D,phase(1),grad_damage(1,1:D),nIEDpar,parIEDMatrix)
+      dissipat_plast = IED(D,damage(1),grad_damage(1,1:D),nIEDpar,parIEDMatrix)
 
       ! dissipation
       !dissipat_creep = totalPotential
@@ -201,10 +257,10 @@ MODULE PhaseField_module
       !
       ! integration point coordinates
       !
-      ! phases
-      svr(1) = phase(1)
+      ! damages
+      svr(1) = damage(1)
       !
-      ! gradients of phases
+      ! gradients of damages
       !svr(2:1+D) = grad_damage(1,1:D)
       !
       ! reversible energy density
@@ -222,54 +278,62 @@ MODULE PhaseField_module
           stran_per = stran
           stran_per(i1) = stran_per(i1) + delta
           ! generalized kinematic measures
-          eps = zero; phase = zero; grad_damage = zero
+          eps = zero; damage = zero; grad_damage = zero
           ! strain tensor
           eps = strainCoordinates(D,ntens,stran_per,isSpherisymmetric)
           ! order parameter -- damage variable
-          phase = phaseParameter(nphase,pos_p,ntens,stran_per)
+          damage = damageParameter(nphase,pos_p,ntens,stran_per)
           ! gradient of order parameter = gradient of damage variable
           grad_damage(:,:) = gradientOfPhaseParameter(nphase,D,pos_p,ntens,stran_per)
           !
           ! generalised stresses
-          stress_per = stresses(D,ntens,nphase,pos_p,eps,phase,grad_damage, &
-                                nHFEDpar,parHFEDMatrix,nIEDpar,parIEDMatrix)
+          stress_per = stresses(D,ntens,nphase,pos_p,eps,damage,grad_damage, &
+                                nHFEDpar,parHFEDMatrix,nIEDpar,parIEDMatrix, &
+                                prop_df_a, prop_df_b, &
+                                H)
           ! tangent
           Ct(i1,1:ntens) = (stress_per(1:ntens)-stress(1:ntens))/delta
         END DO
-!        Ct_temp = tangent(D,ntens,nphase,pos_p,eps,phase,grad_damage, &
+!        Ct_temp = tangent(D,ntens,nphase,pos_p,eps,damage,grad_damage, &
 !                     nHFEDpar,parHFEDMatrix,nIEDpar,parIEDMatrix)
 
       ELSE
         ! analytical material tangent
-        Ct = tangent(D,ntens,nphase,pos_p,eps,phase,grad_damage, &
-                     nHFEDpar,parHFEDMatrix,nIEDpar,parIEDMatrix)
+        Ct = tangent(D,ntens,nphase,pos_p,eps,damage,grad_damage, &
+                     nHFEDpar,parHFEDMatrix,nIEDpar,parIEDMatrix, &
+                     prop_df_a, prop_df_b, &
+                     H)
       END IF
 
       ! dummy output
       rpl = zero; ddsddt = zero; drplde = zero; drpldt = zero
 
-      DEALLOCATE(pos_p, phase, grad_damage)
+      DEALLOCATE(pos_p, damage, grad_damage)
       DEALLOCATE(parHFEDMatrix, parIEDMatrix)
 
       CONTAINS
 
 !------------------------------------------------------------------------------------
 
-      PURE REAL(kind=AbqRK) FUNCTION potential(D,nphase,eps,phase,grad_damage,nHFEDpar,parHFEDMatrix,nIEDpar,parIEDMatrix)
+      PURE REAL(kind=AbqRK) FUNCTION potential(D,nphase,eps,damage,grad_damage,nHFEDpar,parHFEDMatrix,nIEDpar,parIEDMatrix, &
+												prop_df_a, prop_df_b)
       ! computes total potential
 
         USE ABQINTERFACE_PF
         USE FLOATNUMBERS
         USE FreeEnergyModule
         USE AliasModulePF
+        USE BulkEnergyModule
 
         IMPLICIT NONE
         INTEGER(kind=AbqIK), INTENT(IN) :: D, nphase, nHFEDpar, nIEDpar
-        REAL(kind=AbqRK), INTENT(IN) :: eps(3,3), phase(nphase), grad_damage(nphase,3)
+        REAL(kind=AbqRK), INTENT(IN) :: eps(3,3), damage(nphase), grad_damage(nphase,3)
         REAL(kind=AbqRK), INTENT(IN) :: parHFEDMatrix(nHFEDpar), parIEDMatrix(nIEDpar) 
+        REAL(kind=AbqRK), INTENT(IN) :: prop_df_a, prop_df_b
         INTEGER(kind=AbqIK) :: i1
 
-        potential = HFED_Mix(eps,nHFEDpar,parHFEDMatrix) + IED(D,phase(1),grad_damage(1,1:D),nIEDpar,parIEDMatrix)
+        potential = bulkED(eps,damage(1),nHFEDpar,parHFEDMatrix,prop_df_a,prop_df_b) &
+				  + IED(D,damage(1),grad_damage(1,1:D),nIEDpar,parIEDMatrix)
 
       END FUNCTION potential
 
@@ -309,8 +373,8 @@ MODULE PhaseField_module
 
 !------------------------------------------------------------------------------------
 
-      PURE REAL(kind=AbqRK) FUNCTION phaseParameter(nphase,pos_p,ntens,s)
-      ! extract phase parameter
+      PURE REAL(kind=AbqRK) FUNCTION damageParameter(nphase,pos_p,ntens,s)
+      ! extract damage parameter
 
         USE ABQINTERFACE_PF
         USE FLOATNUMBERS
@@ -319,19 +383,19 @@ MODULE PhaseField_module
         INTEGER(kind=AbqIK), INTENT(IN) :: nphase, pos_p(nphase), ntens
         REAL(kind=AbqRK), INTENT(IN) :: s(ntens)
         INTEGER(kind=AbqIK) :: i1
-        DIMENSION phaseParameter(nphase)
+        DIMENSION damageParameter(nphase)
 
-        phaseParameter = zero
+        damageParameter = zero
         FORALL (i1=1:nphase)
-          phaseParameter(i1) = s(pos_p(i1))
+          damageParameter(i1) = s(pos_p(i1))
         END FORALL
 
-      END FUNCTION phaseParameter
+      END FUNCTION damageParameter
 
 !------------------------------------------------------------------------------------
 
       PURE REAL(kind=AbqRK) FUNCTION gradientOfPhaseParameter(nphase,D,pos_p,ntens,s)
-      ! extract gradient of phase parameter
+      ! extract gradient of damage parameter
 
         USE ABQINTERFACE_PF
         USE FLOATNUMBERS
@@ -352,8 +416,10 @@ MODULE PhaseField_module
 !------------------------------------------------------------------------------------
 
       PURE REAL(kind=AbqRK) FUNCTION stresses(D,ntens,nphase, & 
-                                              pos_p,eps,phase,grad_damage, &
-                                              nHFEDpar,parHFEDMatrix,nIEDpar,parIEDMatrix)
+                                              pos_p,eps,damage,grad_damage, &
+                                              nHFEDpar,parHFEDMatrix,nIEDpar,parIEDMatrix, &
+                                              prop_df_a, prop_df_b, &
+                                              H)
 
       ! generalised stresses, modified Voigt notation
 
@@ -366,42 +432,45 @@ MODULE PhaseField_module
         IMPLICIT NONE
         INTEGER(kind=AbqIK), INTENT(IN) :: D, ntens, nphase, pos_p(nphase)
         INTEGER(kind=AbqIK), INTENT(IN) :: nHFEDpar, nIEDpar
-        REAL(kind=AbqRK), INTENT(IN) :: eps(3,3), phase(nphase), grad_damage(nphase,3)
+        REAL(kind=AbqRK), INTENT(IN) :: eps(3,3), damage(nphase), grad_damage(nphase,3)
         REAL(kind=AbqRK), INTENT(IN) :: parHFEDMatrix(nHFEDpar), parIEDMatrix(nIEDpar) 
-        REAL(kind=AbqRK) :: d_HFED_d_eps(3,3)
+        REAL(kind=AbqRK), INTENT(IN) :: prop_df_a, prop_df_b
+        REAL(kind=AbqRK), INTENT(IN) :: H
+        REAL(kind=AbqRK) :: d_BKED_d_eps(3,3)
         REAL(kind=AbqRK) :: temp(3)
         INTEGER(kind=AbqIK) :: i1, pos_i1
         DIMENSION stresses(ntens)
 
-        d_HFED_d_eps = zero
+        d_BKED_d_eps = zero
 
-        ! first derivatives of Helmholtz free energy density
-        d_HFED_d_eps = d_HFED_Mix_d_eps(eps,nHFEDpar,parHFEDMatrix)
+        ! first derivatives of bulk energy density
+        d_BKED_d_eps = d_bulkED_d_eps(eps,damage(1),nHFEDpar,parHFEDMatrix,prop_df_a,prop_df_b)
         !
         stresses=zero
         !
-        ! eps: contributions of HFED
-        stresses(1) = d_HFED_d_eps(1,1)
-        stresses(2) = d_HFED_d_eps(2,2)
-        stresses(3) = d_HFED_d_eps(3,3)
+        ! eps: contributions of bulk energy density (BKED)
+        stresses(1) = d_BKED_d_eps(1,1)
+        stresses(2) = d_BKED_d_eps(2,2)
+        stresses(3) = d_BKED_d_eps(3,3)
         IF (D .GE. 2) THEN
-          stresses(4) = d_HFED_d_eps(1,2)
+          stresses(4) = d_BKED_d_eps(1,2)
         END IF
         IF (D .EQ. 3) THEN
-          stresses(5) = d_HFED_d_eps(1,3)
-          stresses(6) = d_HFED_d_eps(2,3)
+          stresses(5) = d_BKED_d_eps(1,3)
+          stresses(6) = d_BKED_d_eps(2,3)
         END IF
         !
-        ! phase parameters
+        ! damage parameters
         !
         DO i1=1,nphase
           pos_i1 = pos_p(i1)
-          ! phase: contributions of interface energy
-          stresses(pos_i1) = d_IED_d_damage(D,phase(i1),grad_damage(i1,1:D),nIEDpar,parIEDMatrix)
+          ! damage: contributions of interface energy
+          stresses(pos_i1) = d_bulkED_d_damage_H(eps,damage(1),nHFEDpar,parHFEDMatrix,prop_df_a,prop_df_b,H) &
+						   + d_IED_d_damage(D,damage(i1),grad_damage(i1,1:D),nIEDpar,parIEDMatrix)
           !
           ! grad_damage: contributions of interface energy
           temp = zero
-          temp(1:D) = d_IED_d_grad_damage(D,phase(i1),grad_damage(i1,1:D),nIEDpar,parIEDMatrix)
+          temp(1:D) = d_IED_d_grad_damage(D,damage(i1),grad_damage(i1,1:D),nIEDpar,parIEDMatrix)
           stresses(pos_i1+1:pos_i1+D) = temp(1:D)
         END DO
 
@@ -410,8 +479,10 @@ MODULE PhaseField_module
 !------------------------------------------------------------------------------------
 
       PURE REAL(kind=AbqRK) FUNCTION tangent(D,ntens,nphase, & 
-                                             pos_p,eps,phase,grad_damage, &
-                                             nHFEDpar,parHFEDMatrix,nIEDpar,parIEDMatrix)
+                                             pos_p,eps,damage,grad_damage, &
+                                             nHFEDpar,parHFEDMatrix,nIEDpar,parIEDMatrix, &
+                                             prop_df_a, prop_df_b, &
+                                             H)
 
       ! generalised tangent, modified Voigt notation
 
@@ -419,72 +490,75 @@ MODULE PhaseField_module
         USE FLOATNUMBERS
         USE FreeEnergyModule
         USE AliasModulePF
+        USE BulkEnergyModule
 
         IMPLICIT NONE
         INTEGER(kind=AbqIK), INTENT(IN) :: D, ntens, nphase, pos_p(nphase)
         INTEGER(kind=AbqIK), INTENT(IN) :: nHFEDpar, nIEDpar
-        REAL(kind=AbqRK), INTENT(IN) :: eps(3,3), phase(nphase), grad_damage(nphase,3)
+        REAL(kind=AbqRK), INTENT(IN) :: eps(3,3), damage(nphase), grad_damage(nphase,3)
         REAL(kind=AbqRK), INTENT(IN) :: parHFEDMatrix(nHFEDpar), parIEDMatrix(nIEDpar) 
-        REAL(kind=AbqRK) :: d_HFED_d_eps_d_eps(3,3,3,3)
+        REAL(kind=AbqRK), INTENT(IN) :: prop_df_a, prop_df_b
+        REAL(kind=AbqRK), INTENT(IN) :: H
+        REAL(kind=AbqRK) :: d_BKED_d_eps_d_eps(3,3,3,3)
         REAL(kind=AbqRK) :: temp1(3), temp2(3,3)
         INTEGER(kind=AbqIK) :: i1, i2, pos_i1, pos_i2
         DIMENSION tangent(ntens,ntens)
 
-        d_HFED_d_eps_d_eps = zero
+        d_BKED_d_eps_d_eps = zero
 
-        ! second derivatives of Helmholtz free energy density
-        d_HFED_d_eps_d_eps = d_HFED_Mix_d_eps_d_eps(eps,nHFEDpar,parHFEDMatrix)
+        ! second derivatives of bulk energy density
+        d_BKED_d_eps_d_eps = d_bulkED_d_eps_d_eps(eps,damage(1),nHFEDpar,parHFEDMatrix,prop_df_a,prop_df_b)
 
         tangent=zero
         !
-        ! eps-eps: contributions of HFED
-        tangent(1,1) = d_HFED_d_eps_d_eps(1,1,1,1)
-        tangent(1,2) = d_HFED_d_eps_d_eps(1,1,2,2)
-        tangent(1,3) = d_HFED_d_eps_d_eps(1,1,3,3)
-        tangent(2,1) = d_HFED_d_eps_d_eps(2,2,1,1)
-        tangent(2,2) = d_HFED_d_eps_d_eps(2,2,2,2)
-        tangent(2,3) = d_HFED_d_eps_d_eps(2,2,3,3)
-        tangent(3,1) = d_HFED_d_eps_d_eps(3,3,1,1)
-        tangent(3,2) = d_HFED_d_eps_d_eps(3,3,2,2)
-        tangent(3,3) = d_HFED_d_eps_d_eps(3,3,3,3)
+        ! eps-eps: contributions of BKED
+        tangent(1,1) = d_BKED_d_eps_d_eps(1,1,1,1)
+        tangent(1,2) = d_BKED_d_eps_d_eps(1,1,2,2)
+        tangent(1,3) = d_BKED_d_eps_d_eps(1,1,3,3)
+        tangent(2,1) = d_BKED_d_eps_d_eps(2,2,1,1)
+        tangent(2,2) = d_BKED_d_eps_d_eps(2,2,2,2)
+        tangent(2,3) = d_BKED_d_eps_d_eps(2,2,3,3)
+        tangent(3,1) = d_BKED_d_eps_d_eps(3,3,1,1)
+        tangent(3,2) = d_BKED_d_eps_d_eps(3,3,2,2)
+        tangent(3,3) = d_BKED_d_eps_d_eps(3,3,3,3)
         IF (D .GE. 2) THEN
-          tangent(1,4) = d_HFED_d_eps_d_eps(1,1,1,2)
-          tangent(2,4) = d_HFED_d_eps_d_eps(2,2,1,2)
-          tangent(3,4) = d_HFED_d_eps_d_eps(3,3,1,2)
-          tangent(4,1) = d_HFED_d_eps_d_eps(1,2,1,1)
-          tangent(4,2) = d_HFED_d_eps_d_eps(1,2,2,2)
-          tangent(4,3) = d_HFED_d_eps_d_eps(1,2,3,3)
-          tangent(4,4) = d_HFED_d_eps_d_eps(1,2,1,2)
+          tangent(1,4) = d_BKED_d_eps_d_eps(1,1,1,2)
+          tangent(2,4) = d_BKED_d_eps_d_eps(2,2,1,2)
+          tangent(3,4) = d_BKED_d_eps_d_eps(3,3,1,2)
+          tangent(4,1) = d_BKED_d_eps_d_eps(1,2,1,1)
+          tangent(4,2) = d_BKED_d_eps_d_eps(1,2,2,2)
+          tangent(4,3) = d_BKED_d_eps_d_eps(1,2,3,3)
+          tangent(4,4) = d_BKED_d_eps_d_eps(1,2,1,2)
         END IF
         IF (D .EQ. 3) THEN
-          tangent(1,5) = d_HFED_d_eps_d_eps(1,1,1,3)
-          tangent(1,6) = d_HFED_d_eps_d_eps(1,1,2,3)
-          tangent(2,5) = d_HFED_d_eps_d_eps(2,2,1,3)
-          tangent(2,6) = d_HFED_d_eps_d_eps(2,2,2,3)
-          tangent(3,5) = d_HFED_d_eps_d_eps(3,3,1,3)
-          tangent(3,6) = d_HFED_d_eps_d_eps(3,3,2,3)
-          tangent(4,5) = d_HFED_d_eps_d_eps(1,2,1,3)
-          tangent(4,6) = d_HFED_d_eps_d_eps(1,2,2,3)
-          tangent(5,1) = d_HFED_d_eps_d_eps(1,3,1,1)
-          tangent(5,2) = d_HFED_d_eps_d_eps(1,3,2,2)
-          tangent(5,3) = d_HFED_d_eps_d_eps(1,3,3,3)
-          tangent(5,4) = d_HFED_d_eps_d_eps(1,3,1,2)
-          tangent(5,5) = d_HFED_d_eps_d_eps(1,3,1,3)
-          tangent(5,6) = d_HFED_d_eps_d_eps(1,3,2,3)
-          tangent(6,1) = d_HFED_d_eps_d_eps(2,3,1,1)
-          tangent(6,2) = d_HFED_d_eps_d_eps(2,3,2,2)
-          tangent(6,3) = d_HFED_d_eps_d_eps(2,3,3,3)
-          tangent(6,4) = d_HFED_d_eps_d_eps(2,3,1,2)
-          tangent(6,5) = d_HFED_d_eps_d_eps(2,3,1,3)
-          tangent(6,6) = d_HFED_d_eps_d_eps(2,3,2,3)
+          tangent(1,5) = d_BKED_d_eps_d_eps(1,1,1,3)
+          tangent(1,6) = d_BKED_d_eps_d_eps(1,1,2,3)
+          tangent(2,5) = d_BKED_d_eps_d_eps(2,2,1,3)
+          tangent(2,6) = d_BKED_d_eps_d_eps(2,2,2,3)
+          tangent(3,5) = d_BKED_d_eps_d_eps(3,3,1,3)
+          tangent(3,6) = d_BKED_d_eps_d_eps(3,3,2,3)
+          tangent(4,5) = d_BKED_d_eps_d_eps(1,2,1,3)
+          tangent(4,6) = d_BKED_d_eps_d_eps(1,2,2,3)
+          tangent(5,1) = d_BKED_d_eps_d_eps(1,3,1,1)
+          tangent(5,2) = d_BKED_d_eps_d_eps(1,3,2,2)
+          tangent(5,3) = d_BKED_d_eps_d_eps(1,3,3,3)
+          tangent(5,4) = d_BKED_d_eps_d_eps(1,3,1,2)
+          tangent(5,5) = d_BKED_d_eps_d_eps(1,3,1,3)
+          tangent(5,6) = d_BKED_d_eps_d_eps(1,3,2,3)
+          tangent(6,1) = d_BKED_d_eps_d_eps(2,3,1,1)
+          tangent(6,2) = d_BKED_d_eps_d_eps(2,3,2,2)
+          tangent(6,3) = d_BKED_d_eps_d_eps(2,3,3,3)
+          tangent(6,4) = d_BKED_d_eps_d_eps(2,3,1,2)
+          tangent(6,5) = d_BKED_d_eps_d_eps(2,3,1,3)
+          tangent(6,6) = d_BKED_d_eps_d_eps(2,3,2,3)
         END IF
         !
-        ! phase parameters
+        ! damage parameters
         !
         DO i1=1,nphase
           pos_i1 = pos_p(i1)
           !
-          ! eps-phase: contributions of ...
+          ! eps-damage: contributions of ...
           tangent(pos_i1,1) = zero ! dummy
           tangent(pos_i1,2) = zero ! dummy
           tangent(pos_i1,3) = zero ! dummy
@@ -523,17 +597,18 @@ MODULE PhaseField_module
           DO i2=1,nphase
             pos_i2 = pos_p(i2)
             !
-            ! phase-phase: contributions of interface energy
+            ! damage-damage: contributions of interface energy
             tangent(pos_i1,pos_i2) = zero ! dummy
             IF (pos_i1 .EQ. pos_i2) THEN 
               tangent(pos_i1,pos_i1) = zero ! dummy
               IF (i1 .EQ. 1) THEN 
-                tangent(pos_i1,pos_i1) = d_IED_d_damage_d_damage(D,phase(1),grad_damage(1,1:D),nIEDpar,parIEDMatrix)
+                tangent(pos_i1,pos_i1) = d_bulkED_d_damage_d_damage_H(eps,damage(1),nHFEDpar,parHFEDMatrix,prop_df_a,prop_df_b,H) &
+									   + d_IED_d_damage_d_damage(D,damage(1),grad_damage(1,1:D),nIEDpar,parIEDMatrix)
               END IF
             END IF
             tangent(pos_i2,pos_i1) = tangent(pos_i1,pos_i2)
             !
-            ! phase-grad_damage: contributions of ...
+            ! damage-grad_damage: contributions of ...
             temp1(:) = zero ! dummy
             tangent(pos_i1,pos_i2+1:pos_i2+D) = temp1(1:D)
             tangent(pos_i2+1:pos_i2+D,pos_i1) = tangent(pos_i1,pos_i2+1:pos_i2+D)
@@ -542,7 +617,7 @@ MODULE PhaseField_module
             temp2(:,:) = zero ! dummy
             IF (pos_i1 .EQ. pos_i2) THEN
               IF (i1 .EQ. 1) THEN
-                temp2(1:D,1:D) = d_IED_d_grad_damage_d_grad_damage(D,phase(1),grad_damage(1,1:D),nIEDpar,parIEDMatrix)
+                temp2(1:D,1:D) = d_IED_d_grad_damage_d_grad_damage(D,damage(1),grad_damage(1,1:D),nIEDpar,parIEDMatrix)
               END IF
             END IF
             tangent(pos_i1+1:pos_i1+D,pos_i2+1:pos_i2+D) = temp2(1:D,1:D)
